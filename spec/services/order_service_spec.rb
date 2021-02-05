@@ -101,6 +101,7 @@ describe OrderService, type: :services do
             expect(order.seller_id).to eq 'gravity-partner-id'
             expect(order.line_items.count).to eq 1
             expect(order.line_items.pick(:artwork_id, :edition_set_id, :quantity)).to eq [artwork_id, edition_set_id, 2]
+            expect(order.impulse_conversation_id).to eq('11223344556677')
           end.to change(Order, :count).by(1).and change(LineItem, :count).by(1)
         end
       end

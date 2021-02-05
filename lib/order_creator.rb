@@ -58,8 +58,9 @@ class OrderCreator
   end
 
   def valid_action?
+    offerable = artwork[:offerable] || artwork[:offerable_from_inquiry]
     action_error = if @mode == Order::BUY && !artwork[:acquireable] then :not_acquireable
-    elsif @mode == Order::OFFER && !artwork[:offerable] then :not_offerable
+    elsif @mode == Order::OFFER && !offerable then :not_offerable
     end
     @errors << action_error if action_error.present?
     action_error.nil?
@@ -117,7 +118,8 @@ class OrderCreator
         state_expires_at: Order::STATE_EXPIRATIONS[Order::PENDING].from_now,
         original_user_agent: @user_agent,
         original_user_ip: @user_ip,
-        payment_method: Order::CREDIT_CARD # Default to credit card payment method
+        payment_method: Order::CREDIT_CARD, # Default to credit card payment method
+        impulse_conversation_id: @impulse_conversation_id
       )
 
       line_item = order.line_items.create!(

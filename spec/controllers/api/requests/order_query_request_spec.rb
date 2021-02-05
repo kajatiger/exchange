@@ -11,6 +11,7 @@ describe Api::GraphqlController, type: :request do
     let(:created_at) { 2.days.ago }
     let(:order_mode) { Order::BUY }
     let(:fulfillment_type) { Order::SHIP }
+    let(:impulse_conversation_id) { nil }
     let!(:user1_order1) do
       Fabricate(
         :order,
@@ -29,7 +30,8 @@ describe Api::GraphqlController, type: :request do
         buyer_total_cents: 100_00,
         items_total_cents: 0,
         state: state,
-        state_reason: state == Order::CANCELED ? 'seller_lapsed' : nil
+        state_reason: state == Order::CANCELED ? 'seller_lapsed' : nil,
+        impulse_conversation_id: impulse_conversation_id
       )
     end
     let!(:user2_order1) { Fabricate(:order, seller_id: second_seller_id, seller_type: 'gallery', buyer_id: second_user, buyer_type: 'user', items_total_cents: 0) }
@@ -74,6 +76,7 @@ describe Api::GraphqlController, type: :request do
             lastTransactionFailed
             displayCommissionRate
             ... on OfferOrder {
+              impulseConversationId
               awaitingResponseFrom
               lastOffer {
                 id
@@ -352,6 +355,15 @@ describe Api::GraphqlController, type: :request do
             expect(result.data.order.offers.edges.map(&:node).map(&:amount_cents)).to eq [300]
             expect(result.data.order.offers.edges.map(&:node).map(&:from).map(&:id)).to eq [seller_id]
             expect(result.data.order.offers.edges.map(&:node).map(&:from).map(&:__typename)).to eq %w[Partner]
+          end
+        end
+
+        describe 'offer from conversation' do
+          let(:impulse_conversation_id) { '123456' }
+          let(:result) { client.execute(query, id: user1_order1.id) }
+
+          it 'includes last_transaction_failed' do
+            expect(result.data.order.impulse_conversation_id).to eq '123456'
           end
         end
       end

@@ -8,6 +8,7 @@ class Types::OfferOrderType < Types::BaseObject
   field :last_offer, Types::OfferType, null: true, description: 'Last submitted offer'
   field :my_last_offer, Types::OfferType, null: true
   field :awaiting_response_from, Types::OrderParticipantEnum, null: true
+  field :impulse_conversation_id, String, null: true
 
   def offers(**args)
     offers = object.offers.submitted

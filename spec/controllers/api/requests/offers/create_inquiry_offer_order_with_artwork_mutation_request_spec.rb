@@ -38,6 +38,9 @@ describe Api::GraphqlController, type: :request do
                       id
                     }
                   }
+                  ... on OfferOrder {
+                    impulseConversationId
+                  }
                 }
               }
               ... on OrderWithMutationFailure {
@@ -271,6 +274,7 @@ describe Api::GraphqlController, type: :request do
                 response = client.execute(mutation, input: { artworkId: artwork_id, impulseConversationId: '24681357' })
               end.to change(Order, :count).by(1).and change(LineItem, :count).by(1)
               order_id = response.data.create_inquiry_offer_order_with_artwork.order_or_error.order.id
+              order_conversation_id = response.data.create_inquiry_offer_order_with_artwork.order_or_error.order.impulse_conversation_id
               expect(order_id).not_to be_nil
               order = Order.last
               expect(response.data.create_inquiry_offer_order_with_artwork.order_or_error).not_to respond_to(:error)
@@ -283,6 +287,7 @@ describe Api::GraphqlController, type: :request do
               expect(order.line_items.first.artwork_id).to eq 'artwork-id'
               expect(order.line_items.first.edition_set_id).to be_nil
               expect(order.line_items.first.quantity).to eq 1
+              expect(order_conversation_id).to eq '24681357'
             end
           end
 

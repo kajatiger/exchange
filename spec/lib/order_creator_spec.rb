@@ -48,9 +48,19 @@ describe OrderCreator, type: :services do
       end
     end
     context 'invalid action' do
+      context 'inquiry order' do
+        let(:order_mode) { Order::OFFER }
+        let(:gravity_artwork) { gravity_v1_artwork(offerable_from_inquiry: false, offerable: nil) }
+        before do
+          expect(order_creator.valid?).to eq false
+        end
+        it 'sets correct error' do
+          expect(order_creator.errors).to eq [:not_offerable]
+        end
+      end
       context 'offer order' do
         let(:order_mode) { Order::OFFER }
-        let(:gravity_artwork) { gravity_v1_artwork(offerable: false) }
+        let(:gravity_artwork) { gravity_v1_artwork(offerable: false, offerable_from_inquiry: nil) }
         before do
           expect(order_creator.valid?).to eq false
         end
@@ -111,6 +121,28 @@ describe OrderCreator, type: :services do
       end
       it 'sets correct error' do
         expect(order_creator.errors).to eq []
+      end
+    end
+    context 'valid action' do
+      context 'inquiry order' do
+        let(:order_mode) { Order::OFFER }
+        let(:gravity_artwork) { gravity_v1_artwork(offerable_from_inquiry: true, offerable: false) }
+        before do
+          expect(order_creator.valid?).to eq true
+        end
+        it 'sets correct error' do
+          expect(order_creator.errors).to eq []
+        end
+      end
+      context 'offer order' do
+        let(:order_mode) { Order::OFFER }
+        let(:gravity_artwork) { gravity_v1_artwork(offerable_from_inquiry: false, offerable: true) }
+        before do
+          expect(order_creator.valid?).to eq true
+        end
+        it 'sets correct error' do
+          expect(order_creator.errors).to eq []
+        end
       end
     end
   end
