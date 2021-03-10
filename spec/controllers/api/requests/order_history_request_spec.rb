@@ -47,7 +47,7 @@ describe Api::GraphqlController, type: :request do
               }
               ... on OrderStateChangedEvent {
                 createdAt
-                type
+                state
                 stateReason
               }
             }
@@ -86,10 +86,10 @@ describe Api::GraphqlController, type: :request do
         expect(events.length).to be(2)
 
         expect(events[0].__typename).to eq 'OrderStateChangedEvent'
-        expect(events[0].type).to eq 'PENDING'
+        expect(events[0].state).to eq 'PENDING'
 
         expect(events[1].__typename).to eq 'OrderStateChangedEvent'
-        expect(events[1].type).to eq 'SUBMITTED'
+        expect(events[1].state).to eq 'SUBMITTED'
       end
     end
 
@@ -114,10 +114,10 @@ describe Api::GraphqlController, type: :request do
           expect(events.length).to be(5)
 
           expect(events[0].__typename).to eq 'OrderStateChangedEvent'
-          expect(events[0].type).to eq 'PENDING'
+          expect(events[0].state).to eq 'PENDING'
 
           expect(events[1].__typename).to eq 'OrderStateChangedEvent'
-          expect(events[1].type).to eq 'SUBMITTED'
+          expect(events[1].state).to eq 'SUBMITTED'
 
           expect(events[2].__typename).to eq 'OfferSubmittedEvent'
           expect(events[2].offer.amount_cents).to eq 200

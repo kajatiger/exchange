@@ -38,7 +38,7 @@ describe OrderHistoryService, type: :services do
           events = OrderHistoryService.events_for(order_id: order.id)
           expect(events.length).to be 4
           expect(events.map { |event| event.class.name.demodulize }).to eq %w[OrderStateChanged OrderStateChanged OrderStateChanged OrderStateChanged]
-          expect(events.map(&:type)).to eq %w[pending submitted approved fulfilled]
+          expect(events.map(&:state)).to eq %w[pending submitted approved fulfilled]
         end
       end
       describe 'seller lapsed order' do
@@ -50,7 +50,7 @@ describe OrderHistoryService, type: :services do
           events = OrderHistoryService.events_for(order_id: order.id)
           expect(events.length).to be 3
           expect(events.map { |event| event.class.name.demodulize }).to eq %w[OrderStateChanged OrderStateChanged OrderStateChanged]
-          expect(events.map(&:type)).to eq %w[pending submitted canceled]
+          expect(events.map(&:state)).to eq %w[pending submitted canceled]
         end
       end
     end
@@ -60,8 +60,8 @@ describe OrderHistoryService, type: :services do
           events = OrderHistoryService.events_for(order_id: order.id)
           expect(events.length).to be 3
           expect(events.map { |event| event.class.name.demodulize }).to eq %w[OrderStateChanged OfferSubmitted OrderStateChanged]
-          expect(events[0].type).to eq 'pending'
-          expect(events[2].type).to eq 'submitted'
+          expect(events[0].state).to eq 'pending'
+          expect(events[2].state).to eq 'submitted'
           expect(events[1].offer.amount_cents).to eq  100000
           expect(events[1].offer.from_participant).to eq 'buyer'
         end
@@ -104,9 +104,9 @@ describe OrderHistoryService, type: :services do
           events = OrderHistoryService.events_for(order_id: order.id)
           expect(events.length).to be 5
           expect(events.map { |event| event.class.name.demodulize }).to eq %w[OrderStateChanged OfferSubmitted OrderStateChanged OfferSubmitted OrderStateChanged]
-          expect(events[0].type).to eq 'pending'
-          expect(events[2].type).to eq 'submitted'
-          expect(events[4].type).to eq 'approved'
+          expect(events[0].state).to eq 'pending'
+          expect(events[2].state).to eq 'submitted'
+          expect(events[4].state).to eq 'approved'
           expect(events[1].offer.from_participant).to eq 'buyer'
           expect(events[3].offer.from_participant).to eq 'seller'
         end
