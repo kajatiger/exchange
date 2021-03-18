@@ -23,6 +23,7 @@ module Types::OrderInterface
   field :last_transaction_failed, Boolean, null: true, method: :last_transaction_failed?
   field :line_items, Types::LineItemType.connection_type, null: true
   field :mode, Types::OrderModeEnum, null: true
+  field :order_history, [Types::Events::OrderEventUnion], null: false
   field :requested_fulfillment, Types::RequestedFulfillmentUnionType, null: true
   field :seller_total_cents, Integer, null: true, seller_only: true
   field :seller, Types::OrderPartyUnionType, null: false

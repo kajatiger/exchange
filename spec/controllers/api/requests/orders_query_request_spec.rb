@@ -18,8 +18,8 @@ describe Api::GraphqlController, type: :request do
 
     let(:query) do
       <<-GRAPHQL
-        query($sellerId: String, $buyerId: String, $state: OrderStateEnum, $sort: OrderConnectionSortEnum, $mode: OrderModeEnum) {
-          orders(sellerId: $sellerId, buyerId: $buyerId, state: $state, sort: $sort, mode: $mode) {
+        query($sellerId: String, $buyerId: String, $impulseConversationId: String, $state: OrderStateEnum, $sort: OrderConnectionSortEnum, $mode: OrderModeEnum) {
+          orders(sellerId: $sellerId, buyerId: $buyerId, impulseConversationId: $impulseConversationId, state: $state, sort: $sort, mode: $mode) {
             edges {
               node {
                 id
@@ -158,6 +158,35 @@ describe Api::GraphqlController, type: :request do
         result = client.execute(query, buyerId: user_id, sort: 'STATE_EXPIRES_AT_DESC')
         ids = ids_from_result_data(result)
         expect(ids).to eq([user1_order2.id, user1_offer_order1.id, user1_order1.id])
+      end
+    end
+
+    context 'query with conversationId' do
+      let!(:user1_conversation_offer_order1) { Fabricate(:order, impulse_conversation_id: 'conversationid1', seller_type: 'partner', seller_id: seller_id, buyer_type: 'user', buyer_id: user_id, updated_at: 1.day.ago, mode: Order::OFFER) }
+      let!(:user1_conversation_offer_order2) { Fabricate(:order, impulse_conversation_id: 'conversationid2', seller_type: 'partner', seller_id: seller_id, buyer_type: 'user', buyer_id: user_id, updated_at: 1.day.ago, mode: Order::OFFER) }
+
+      it 'returns orders by conversation and buyer id' do
+        result = client.execute(query, impulseConversationId: 'conversationid1', buyerId: user_id)
+        ids = ids_from_result_data(result)
+        expect(ids).to eq([user1_conversation_offer_order1.id])
+      end
+
+      it 'returns orders by conversation and buyer id' do
+        result = client.execute(query, impulseConversationId: 'conversationid1', sellerId: seller_id)
+        ids = ids_from_result_data(result)
+        expect(ids).to eq([user1_conversation_offer_order1.id])
+      end
+
+      it 'rejects a request without a buyer or seller id' do
+        expect do
+          client.execute(query, impulseConversationId: 'conversationid1')
+        end.to raise_error do |error|
+          expect(error).to be_a(Graphlient::Errors::ServerError)
+          expect(error.message).to eq 'the server responded with status 400'
+          expect(error.status_code).to eq 400
+          expect(error.response['errors'].first['extensions']['code']).to eq 'missing_params'
+          expect(error.response['errors'].first['extensions']['type']).to eq 'validation'
+        end
       end
     end
 

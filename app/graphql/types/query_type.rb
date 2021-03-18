@@ -11,6 +11,7 @@ class Types::QueryType < Types::BaseObject
   field :orders, Types::OrderConnectionWithTotalCountType, null: true, connection: true do
     description 'Find list of orders'
     argument :seller_id, String, required: false
+    argument :impulse_conversation_id, String, required: false
     argument :seller_type, String, required: false
     argument :buyer_id, String, required: false
     argument :buyer_type, String, required: false
