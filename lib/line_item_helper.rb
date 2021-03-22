@@ -14,6 +14,9 @@ module LineItemHelper
     else
       artwork[:inventory]
     end
+
+    return false if inventory.blank?
+
     inventory[:count].positive? || inventory[:unlimited]
   end
 

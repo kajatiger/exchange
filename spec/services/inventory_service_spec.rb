@@ -43,7 +43,7 @@ describe InventoryService do
   end
 
   describe '#check_inventory' do
-    xcontext 'with null inventory' do
+    context 'with null inventory' do
       let(:artwork1_inventory) { nil }
 
       it 'raises an exception' do
