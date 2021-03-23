@@ -25,6 +25,6 @@ class StripeWebhookService
     order.refund! do
       order.transactions.create!(external_id: @event.id, destination_id: @event.data.object.destination_id, source_id: @event.data.object.source.id, amount_cents: @event.data.object.amount, status: Transaction::SUCCESS, transaction_type: Transaction::REFUND)
     end
-    order.line_items.each { |li| Gravity.undeduct_inventory(li) }
+    order.line_items.each { |li| Gravity.undeduct_inventory(li) } if order.require_inventory?
   end
 end

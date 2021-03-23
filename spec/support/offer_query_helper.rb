@@ -20,6 +20,30 @@ module OfferQueryHelper
     }
   ).freeze
 
+  CREATE_INQUIRY_OFFER_ORDER = %(
+    mutation($input: CreateInquiryOfferOrderWithArtworkInput!) {
+      createInquiryOfferOrderWithArtwork(input: $input) {
+        orderOrError {
+          ... on OrderWithMutationSuccess {
+            order {
+              id
+              ... on OfferOrder {
+                impulseConversationId
+              }
+            }
+          }
+          ... on OrderWithMutationFailure {
+            error {
+              code
+              data
+              type
+            }
+          }
+        }
+      }
+    }
+  ).freeze
+
   ADD_OFFER_TO_ORDER = %(
     mutation($input: AddInitialOfferToOrderInput!) {
       addInitialOfferToOrder(input: $input) {

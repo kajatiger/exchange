@@ -6,6 +6,7 @@ class OfferProcessor
     @order = offer.order
     @user_id = user_id
     @state_changed = false
+    @inventory_service = InventoryService.new(@order)
   end
 
   def validate_offer!
@@ -13,7 +14,7 @@ class OfferProcessor
   end
 
   def check_inventory!
-    raise Errors::InsufficientInventoryError unless order.inventory?
+    @inventory_service.check_inventory! if @order.require_inventory?
   end
 
   def validate_order!

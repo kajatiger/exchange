@@ -51,10 +51,7 @@ module OrderService
     raise Errors::ValidationError, order_processor.validation_error unless order_processor.valid?
 
     order_processor.advance_state(:submit!)
-    unless order_processor.deduct_inventory
-      order_processor.revert!('insufficient_inventory')
-      raise Errors::InsufficientInventoryError
-    end
+    order_processor.deduct_inventory!
 
     order_processor.set_totals!
     order_processor.hold
@@ -127,7 +124,7 @@ module OrderService
     order.seller_lapse!
     order_cancelation_processor = OrderCancelationProcessor.new(order)
     order_cancelation_processor.cancel_payment if order.mode == Order::BUY
-    order_cancelation_processor.queue_undeduct_inventory_jobs if order.mode == Order::BUY
+    order_cancelation_processor.queue_undeduct_inventory_jobs if order.mode == Order::BUY && order.require_inventory?
     order_cancelation_processor.notify
     Exchange.dogstatsd.increment 'order.seller_lapsed'
   end
@@ -144,7 +141,7 @@ module OrderService
     order.reject!(reason)
     order_cancelation_processor = OrderCancelationProcessor.new(order, user_id)
     order_cancelation_processor.cancel_payment if order.mode == Order::BUY
-    order_cancelation_processor.queue_undeduct_inventory_jobs if order.mode == Order::BUY
+    order_cancelation_processor.queue_undeduct_inventory_jobs if order.mode == Order::BUY && order.require_inventory?
     order_cancelation_processor.notify
     Exchange.dogstatsd.increment 'order.reject'
   end
@@ -153,7 +150,7 @@ module OrderService
     order.refund!
     order_cancelation_processor = OrderCancelationProcessor.new(order)
     order_cancelation_processor.refund_payment
-    order_cancelation_processor.queue_undeduct_inventory_jobs
+    order_cancelation_processor.queue_undeduct_inventory_jobs if order.require_inventory?
     order_cancelation_processor.notify
     Exchange.dogstatsd.increment 'order.refund'
     Exchange.dogstatsd.count("order.money_refunded_#{order.currency_code}", order.buyer_total_cents)

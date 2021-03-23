@@ -2,9 +2,11 @@ require 'rails_helper'
 
 describe StripeWebhookService, type: :services do
   include_context 'use stripe mock'
+
   let(:state) { Order::APPROVED }
   let(:external_charge_id) { 'ch_some_id' }
-  let!(:order) { Fabricate(:order, state: state, external_charge_id: external_charge_id) }
+  let(:impulse_conversation_id) { nil }
+  let!(:order) { Fabricate(:order, state: state, external_charge_id: external_charge_id, impulse_conversation_id: impulse_conversation_id) }
   let!(:line_item) { Fabricate(:line_item, order: order, artwork_id: 'artwork-1') }
 
   context 'charge.refunded event' do
@@ -19,8 +21,10 @@ describe StripeWebhookService, type: :services do
       )
     end
     let(:service) { StripeWebhookService.new(charge_refunded_event) }
+
     context 'unknown charge id' do
       let(:event_charge_id) { 'ch_random' }
+
       it 'raises unknown_event_charge' do
         expect { service.process! }.to raise_error do |e|
           expect(e.type).to eq :processing
@@ -30,8 +34,10 @@ describe StripeWebhookService, type: :services do
         end
       end
     end
+
     context 'partial refunds' do
       let(:fully_refunded) { false }
+
       it 'raises received_partial_refund' do
         expect { service.process! }.to raise_error do |e|
           expect(e.type).to eq :processing
@@ -43,18 +49,43 @@ describe StripeWebhookService, type: :services do
     end
 
     context 'known charge id' do
-      it 'stores transaction and refunds the charge' do
-        expect(Gravity).to receive(:undeduct_inventory).once.with(line_item)
-        expect { service.process! }.to change(order.transactions, :count).by(1)
-        expect(order.reload.state).to eq Order::REFUNDED
-        new_transaction = order.transactions.last
-        expect(new_transaction.external_id).to eq charge_refunded_event.id
-        expect(new_transaction.source_id).to eq charge_refunded_event.data.object.source.id
+      context 'BNMO order' do
+        it 'stores transaction and refunds the charge' do
+          allow(Gravity).to receive(:undeduct_inventory)
+          expect { service.process! }.to change(order.transactions, :count).by(1)
+          expect(order.reload.state).to eq Order::REFUNDED
+          new_transaction = order.transactions.last
+          expect(new_transaction.external_id).to eq charge_refunded_event.id
+          expect(new_transaction.source_id).to eq charge_refunded_event.data.object.source.id
+        end
+
+        it 'undeducts inventory' do
+          expect(Gravity).to receive(:undeduct_inventory).once.with(line_item)
+          service.process!
+        end
+      end
+
+      context 'inquiry order' do
+        let(:impulse_conversation_id) { '401' }
+
+        it 'stores transaction and refunds the charge' do
+          expect { service.process! }.to change(order.transactions, :count).by(1)
+          expect(order.reload.state).to eq Order::REFUNDED
+          new_transaction = order.transactions.last
+          expect(new_transaction.external_id).to eq charge_refunded_event.id
+          expect(new_transaction.source_id).to eq charge_refunded_event.data.object.source.id
+        end
+
+        it 'does not undeduct inventory' do
+          expect(Gravity).to_not receive(:undeduct_inventory)
+          service.process!
+        end
       end
     end
 
     context 'already refunded order' do
       let(:state) { Order::REFUNDED }
+
       it 'does not update the order' do
         expect(Gravity).not_to receive(:undeduct_inventory)
         expect { service.process! }.to change(order.transactions, :count).by(0)

@@ -16,7 +16,8 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       price_listed: 1000.00,
       edition_sets: [],
       domestic_shipping_fee_cents: nil,
-      international_shipping_fee_cents: nil
+      international_shipping_fee_cents: nil,
+      inventory: nil
     )
   end
   let(:buyer_shipping_address) do
@@ -58,18 +59,16 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
   end
 
   def buyer_creates_pending_offer_order
-    # TODO: feat: support creating offer order with an impulse_conversation_id
-    create_offer_order_input = { artworkId: artwork[:_id], quantity: 1 }
+    create_inquiry_offer_order_input = { artworkId: artwork[:_id], quantity: 1, impulseConversationId: impulse_conversation_id }
     expect do
-      buyer_client.execute(OfferQueryHelper::CREATE_OFFER_ORDER, input: create_offer_order_input)
+      buyer_client.execute(OfferQueryHelper::CREATE_INQUIRY_OFFER_ORDER, input: create_inquiry_offer_order_input)
     end.to change(Order, :count).by(1)
 
     order = Order.last
-    # TODO: test: assert order created with proper impulse_conversation_id
     expect(order).to have_attributes(
       state: Order::PENDING,
       mode: Order::OFFER,
-      # impulse_conversation_id: '401',
+      impulse_conversation_id: '401',
       items_total_cents: nil,
       shipping_total_cents: nil,
       tax_total_cents: nil,
@@ -89,7 +88,7 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
     expect(order.reload).to have_attributes(
       state: Order::PENDING,
       mode: Order::OFFER,
-      # impulse_conversation_id: '401',
+      impulse_conversation_id: '401',
       items_total_cents: nil,
       shipping_total_cents: nil,
       tax_total_cents: nil,
@@ -125,7 +124,7 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
     expect(order.reload).to have_attributes(
       state: Order::PENDING,
       mode: Order::OFFER,
-      # impulse_conversation_id: '401',
+      impulse_conversation_id: '401',
       fulfillment_type: Order::SHIP,
       items_total_cents: nil,
       shipping_total_cents: nil,
@@ -240,7 +239,6 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
 
     # TODO: feat: capture payment and update transactions
     allow_any_instance_of(OrderProcessor).to receive_messages(
-      deduct_inventory: true,
       debit_commission_exemption: nil,
       charge: nil,
       store_transaction: nil
@@ -263,6 +261,10 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       shipping_country: 'US',
       credit_card_id: 'credit_card_1'
     )
+
+    deduct_inventory_request = stub_request(:put, "#{gravity_v1_api_root}/artwork/#{artwork[:_id]}/inventory")
+    expect(deduct_inventory_request).to_not have_been_made
+
     # TODO: test: assert transactions
   end
 end

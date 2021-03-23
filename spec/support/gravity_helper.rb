@@ -1,3 +1,7 @@
+def gravity_v1_api_root
+  (Rails.application.config_for(:gravity)['api_v1_root']).to_s
+end
+
 def gravity_v1_artwork(options = {})
   {
     artist: {

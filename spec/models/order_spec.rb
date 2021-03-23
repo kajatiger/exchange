@@ -308,6 +308,30 @@ RSpec.describe Order, type: :model do
     end
   end
 
+  describe '#inquiry_order?' do
+    it 'is true with impulse conversation id' do
+      order = Fabricate(:order, impulse_conversation_id: '401')
+      expect(order.inquiry_order?).to eq true
+    end
+
+    it 'is false with no impulse conversation id' do
+      order = Fabricate(:order, impulse_conversation_id: nil)
+      expect(order.inquiry_order?).to eq false
+    end
+  end
+
+  describe '#require_inventory?' do
+    it 'is true for non-inquiry order' do
+      order = Fabricate(:order, impulse_conversation_id: nil)
+      expect(order.require_inventory?).to eq true
+    end
+
+    it 'is false for inquiry order' do
+      order = Fabricate(:order, impulse_conversation_id: '401')
+      expect(order.require_inventory?).to eq false
+    end
+  end
+
   describe '#last_transaction_failed?' do
     context 'with an offer order' do
       let(:order) { Fabricate(:order, mode: Order::OFFER, offers: [Fabricate(:offer)]) }

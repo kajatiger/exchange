@@ -155,6 +155,14 @@ class Order < ApplicationRecord
     seller_type == AUCTION_SELLER_TYPE
   end
 
+  def inquiry_order?
+    impulse_conversation_id.present?
+  end
+
+  def require_inventory?
+    !inquiry_order?
+  end
+
   def to_s
     "Order #{id}"
   end

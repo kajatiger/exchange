@@ -7,13 +7,13 @@ describe OrderService, type: :services do
   let(:state_reason) { state == Order::CANCELED ? 'seller_lapsed' : nil }
   let(:fulfillment_type) { Order::SHIP }
   let(:order_mode) { Order::BUY }
-  let(:order) { Fabricate(:order, mode: order_mode, external_charge_id: 'pi_1', state: state, state_reason: state_reason, buyer_id: 'b123', fulfillment_type: fulfillment_type) }
+  let(:impulse_conversation_id) { nil }
+  let(:order) { Fabricate(:order, mode: order_mode, external_charge_id: 'pi_1', state: state, state_reason: state_reason, buyer_id: 'b123', fulfillment_type: fulfillment_type, impulse_conversation_id: impulse_conversation_id) }
   let!(:line_items) do
     [Fabricate(:line_item, order: order, artwork_id: 'a-1', list_price_cents: 123_00, sales_tax_cents: 0, shipping_total_cents: 0),
      Fabricate(:line_item, order: order, artwork_id: 'a-2', edition_set_id: 'es-1', quantity: 2, list_price_cents: 124_00, sales_tax_cents: 0, shipping_total_cents: 0)]
   end
   let(:user_id) { 'user-id' }
-  let(:impulse_conversation_id) { '11223344556677' }
 
   describe 'create_with_artwork' do
     let(:buyer_id) { 'buyer_id' }
@@ -24,8 +24,7 @@ describe OrderService, type: :services do
 
     context 'find_active_or_create=true' do
       let(:call_service) do
-        OrderService.create_with_artwork!(buyer_id: buyer_id, buyer_type: Order::USER, mode: mode, quantity: 2, artwork_id: artwork_id, edition_set_id: edition_set_id, user_agent: 'ua', user_ip: '0.1', find_active_or_create: true,
-                                          impulse_conversation_id: impulse_conversation_id)
+        OrderService.create_with_artwork!(buyer_id: buyer_id, buyer_type: Order::USER, mode: mode, quantity: 2, artwork_id: artwork_id, edition_set_id: edition_set_id, user_agent: 'ua', user_ip: '0.1', find_active_or_create: true, impulse_conversation_id: '123')
       end
 
       context 'with existing order with same artwork/editionset/mode/quantity' do
@@ -63,6 +62,7 @@ describe OrderService, type: :services do
             expect(order.seller_id).to eq 'gravity-partner-id'
             expect(order.line_items.count).to eq 1
             expect(order.line_items.pick(:artwork_id, :edition_set_id, :quantity)).to eq [artwork_id, edition_set_id, 2]
+            expect(order.impulse_conversation_id).to eq('123')
           end.to change(Order, :count).by(1).and change(LineItem, :count).by(1)
         end
 
@@ -80,8 +80,7 @@ describe OrderService, type: :services do
 
     context 'find_active_or_create=false' do
       let(:call_service) do
-        OrderService.create_with_artwork!(buyer_id: buyer_id, buyer_type: Order::USER, mode: mode, quantity: 2, artwork_id: artwork_id, edition_set_id: edition_set_id, user_agent: 'ua', user_ip: '0.1', find_active_or_create: false,
-                                          impulse_conversation_id: impulse_conversation_id)
+        OrderService.create_with_artwork!(buyer_id: buyer_id, buyer_type: Order::USER, mode: mode, quantity: 2, artwork_id: artwork_id, edition_set_id: edition_set_id, user_agent: 'ua', user_ip: '0.1', find_active_or_create: false, impulse_conversation_id: '123')
       end
       before do
         expect(Adapters::GravityV1).to receive(:get).with("/artwork/#{artwork_id}").once.and_return(gravity_v1_artwork)
@@ -101,7 +100,7 @@ describe OrderService, type: :services do
             expect(order.seller_id).to eq 'gravity-partner-id'
             expect(order.line_items.count).to eq 1
             expect(order.line_items.pick(:artwork_id, :edition_set_id, :quantity)).to eq [artwork_id, edition_set_id, 2]
-            expect(order.impulse_conversation_id).to eq('11223344556677')
+            expect(order.impulse_conversation_id).to eq('123')
           end.to change(Order, :count).by(1).and change(LineItem, :count).by(1)
         end
       end
@@ -447,6 +446,14 @@ describe OrderService, type: :services do
         it 'queues notification job' do
           expect(PostEventJob).to have_been_enqueued.with('commerce', kind_of(String), 'order.canceled')
         end
+
+        context 'inquiry order' do
+          let(:impulse_conversation_id) { '401' }
+
+          it 'does not queue undeduct inventory job for inquiry orders' do
+            expect(UndeductLineItemInventoryJob).to_not have_been_enqueued
+          end
+        end
       end
 
       context 'with an unsuccessful payment intent cancelation' do
@@ -483,6 +490,14 @@ describe OrderService, type: :services do
       it 'queues notification job' do
         expect(PostEventJob).to have_been_enqueued.with('commerce', kind_of(String), 'order.canceled')
       end
+
+      context 'inquiry order' do
+        let(:impulse_conversation_id) { '401' }
+
+        it 'does not queue undeduct inventory job for inquiry orders' do
+          expect(UndeductLineItemInventoryJob).to_not have_been_enqueued
+        end
+      end
     end
   end
 
@@ -514,8 +529,10 @@ describe OrderService, type: :services do
         Fabricate(:transaction, order: order, external_id: 'pi_1', external_type: Transaction::PAYMENT_INTENT)
         stub_request(:post, Rails.application.config_for(:graphql)[:gravity_graphql][:url]).to_return(status: 200, body: '{}', headers: {})
       end
+
       context "#{state} order" do
         let(:state) { state }
+
         context 'with a successful refund' do
           before do
             prepare_payment_intent_refund_success
@@ -537,6 +554,14 @@ describe OrderService, type: :services do
 
           it 'queues notification job' do
             expect(PostEventJob).to have_been_enqueued.with('commerce', kind_of(String), 'order.refunded')
+          end
+
+          context 'inquiry order' do
+            let(:impulse_conversation_id) { '401' }
+
+            it 'does not queue undeduct inventory job for inquiry orders' do
+              expect(UndeductLineItemInventoryJob).to_not have_been_enqueued
+            end
           end
         end
 
@@ -570,6 +595,7 @@ describe OrderService, type: :services do
 
   describe '#reject!' do
     let(:state) { Order::SUBMITTED }
+
     context 'with a successful payment intent cancel' do
       before do
         prepare_payment_intent_cancel_success
@@ -592,6 +618,14 @@ describe OrderService, type: :services do
 
       it 'queues notification job' do
         expect(PostEventJob).to have_been_enqueued.with('commerce', kind_of(String), 'order.canceled')
+      end
+
+      context 'inquiry order' do
+        let(:impulse_conversation_id) { '401' }
+
+        it 'does not queue undeduct inventory job for inquiry orders' do
+          expect(UndeductLineItemInventoryJob).to_not have_been_enqueued
+        end
       end
 
       context 'offer order' do

@@ -113,7 +113,9 @@ describe OrderProcessor, type: :services do
       order_processor.revert! revert_reason
     end
     it 'undeducts inventory if there are deducted inventories' do
-      order_processor.instance_variable_set(:@deducted_inventory, [line_item1, line_item2])
+      inventory_service = InventoryService.new(order)
+      inventory_service.instance_variable_set(:@deducted_items, [line_item1, line_item2])
+      order_processor.instance_variable_set(:@inventory_service, inventory_service)
       stub_line_item_1_gravity_undeduct.to_return(status: 200, body: {}.to_json)
       stub_line_item_2_gravity_undeduct.to_return(status: 200, body: {}.to_json)
       order_processor.revert!
@@ -137,7 +139,6 @@ describe OrderProcessor, type: :services do
       )
     end
     it 'it reverts submitted order to pending' do
-      order_processor.instance_variable_set(:@deducted_inventory, [])
       order.submit!
       original_state_expires_at = order.reload.state_expires_at
       order_processor.instance_variable_set(:@state_changed, true)
@@ -229,36 +230,59 @@ describe OrderProcessor, type: :services do
     end
   end
 
-  describe 'deduct_inventory' do
+  describe 'deduct_inventory!' do
     before do
       line_item2
     end
-    it 'returns true when fully deducted inventory' do
+
+    it 'does not raise an exception when fully deducted inventory' do
       stub_line_item_1_gravity_deduct.to_return(status: 200, body: {}.to_json)
       stub_line_item_2_gravity_deduct.to_return(status: 200, body: {}.to_json)
-      expect(order_processor.deduct_inventory).to be true
+      expect do
+        order_processor.deduct_inventory!
+      end.to_not raise_error
       expect(stub_line_item_1_gravity_deduct).to have_been_requested
       expect(stub_line_item_2_gravity_deduct).to have_been_requested
     end
-    it 'returns false on insufficient inventory' do
+
+    it 'raises an exception on insufficient inventory' do
       stub_line_item_1_gravity_deduct.to_return(status: 200, body: {}.to_json)
       stub_line_item_2_gravity_deduct.to_return(status: 400, body: {}.to_json)
-      expect(order_processor.deduct_inventory).to be false
+      expect do
+        order_processor.deduct_inventory!
+      end.to raise_error(Errors::InsufficientInventoryError)
       expect(stub_line_item_1_gravity_deduct).to have_been_requested
       expect(stub_line_item_2_gravity_deduct).to have_been_requested
+    end
+
+    it 'skips for inquiry orders' do
+      order.impulse_conversation_id = '401'
+      order_processor.deduct_inventory!
+      expect(stub_line_item_1_gravity_deduct).to_not have_been_made
+      expect(stub_line_item_2_gravity_deduct).to_not have_been_made
     end
   end
 
   describe 'undedudct_inventory!' do
     before do
-      order_processor.instance_variable_set(:@deducted_inventory, [line_item1, line_item2])
+      inventory_service = InventoryService.new(order)
+      inventory_service.instance_variable_set(:@deducted_items, [line_item1, line_item2])
+      order_processor.instance_variable_set(:@inventory_service, inventory_service)
     end
+
     it 'calls undeduct for line items' do
       stub_line_item_1_gravity_undeduct.to_return(status: 200, body: {}.to_json)
       stub_line_item_2_gravity_undeduct.to_return(status: 200, body: {}.to_json)
       order_processor.undeduct_inventory!
       expect(stub_line_item_1_gravity_undeduct).to have_been_requested
       expect(stub_line_item_2_gravity_undeduct).to have_been_requested
+    end
+
+    it 'skips for inquiry orders' do
+      order.impulse_conversation_id = '401'
+      order_processor.undeduct_inventory!
+      expect(stub_line_item_1_gravity_undeduct).to_not have_been_made
+      expect(stub_line_item_2_gravity_undeduct).to_not have_been_made
     end
   end
 

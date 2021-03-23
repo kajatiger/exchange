@@ -15,4 +15,13 @@ describe Errors::ApplicationError do
       expect(PostEventJob).not_to have_been_enqueued
     end
   end
+
+  describe 'error message' do
+    it 'uses the code as the error message' do
+      error = Errors::InsufficientInventoryError.new
+
+      expect(error.type).to eq :processing
+      expect(error.message).to eq 'insufficient_inventory'
+    end
+  end
 end

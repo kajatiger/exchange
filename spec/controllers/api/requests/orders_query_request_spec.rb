@@ -268,6 +268,23 @@ describe Api::GraphqlController, type: :request do
       end
     end
 
+    context "sales_observer accessing another account's order" do
+      let(:jwt_roles) { 'sales_observer' }
+
+      it 'allows action' do
+        expect do
+          client.execute(query, buyerId: second_user)
+        end.to_not raise_error
+      end
+
+      it 'returns expected payload' do
+        result = client.execute(query, buyerId: second_user)
+        expect(result.data.orders.edges.count).to eq 1
+        ids = ids_from_result_data(result)
+        expect(ids).to match_array([user2_order1.id])
+      end
+    end
+
     describe 'total_count' do
       let(:query_with_total_count) do
         <<-GRAPHQL

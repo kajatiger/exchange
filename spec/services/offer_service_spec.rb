@@ -512,7 +512,7 @@ describe OfferService, type: :services do
       allow_any_instance_of(OrderProcessor).to receive_messages(
         valid?: true,
         advance_state: nil,
-        deduct_inventory: true,
+        deduct_inventory!: nil,
         set_totals!: nil,
         failed_payment?: false,
         store_transaction: nil,
@@ -529,7 +529,7 @@ describe OfferService, type: :services do
       allow_any_instance_of(OrderProcessor).to receive_messages(
         valid?: true,
         advance_state: nil,
-        deduct_inventory: true,
+        deduct_inventory!: nil,
         set_totals!: nil,
         failed_payment?: false,
         store_transaction: nil,
@@ -544,7 +544,7 @@ describe OfferService, type: :services do
       allow_any_instance_of(OrderProcessor).to receive_messages(
         valid?: true,
         advance_state: nil,
-        deduct_inventory: true,
+        deduct_inventory!: nil,
         set_totals!: nil,
         failed_payment?: false,
         store_transaction: nil,
@@ -561,7 +561,7 @@ describe OfferService, type: :services do
         allow_any_instance_of(OrderProcessor).to receive_messages(
           valid?: true,
           advance_state: nil,
-          deduct_inventory: true,
+          deduct_inventory!: nil,
           set_totals!: nil,
           failed_payment?: false,
           store_transaction: nil,

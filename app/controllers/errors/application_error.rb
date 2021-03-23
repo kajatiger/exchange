@@ -9,7 +9,7 @@ module Errors
       @code = code
       @data = data
       post_error_event if post_event
-      super(type)
+      super(code)
     end
 
     private
