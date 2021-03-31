@@ -4,11 +4,20 @@ require 'support/taxjar_helper'
 
 describe 'Inquiry Checkout happy path with missing artwork metadata', type: :request do
   include_context 'GraphQL Client Helpers'
+  include_context 'include stripe helper'
 
   let(:buyer_id) { 'gravity-user-id' }
   let(:buyer_client) { graphql_client(user_id: buyer_id, partner_ids: [], roles: 'user') }
   let(:seller_id) { 'gravity-partner-id' }
   let(:seller_client) { graphql_client(user_id: 'partner_admin_id', partner_ids: [seller_id], roles: 'user') }
+  let(:seller_merchant_account) { { external_id: 'ma-1' } }
+  let(:seller_addresses) { [Address.new(state: 'NY', country: 'US', postal_code: '10001'), Address.new(state: 'MA', country: 'US', postal_code: '02139')] }
+  let(:buyer_client) { graphql_client(user_id: buyer_id, partner_ids: [], roles: 'user') }
+  let(:seller_client) { graphql_client(user_id: 'partner_admin_id', partner_ids: [seller_id], roles: 'user') }
+  let(:gravity_artwork) { gravity_v1_artwork(_id: 'a-1', price_listed: 1000.00, edition_sets: [], domestic_shipping_fee_cents: 200_00, international_shipping_fee_cents: 300_00) }
+  let(:gravity_partner) { { id: seller_id, artsy_collects_sales_tax: true, billing_location_id: '123abc', effective_commission_rate: 0.1 } }
+  let(:exemption) { { currency_code: 'USD', amount_minor: 0 } }
+
   let(:impulse_conversation_id) { '401' }
   let(:artwork) do
     gravity_v1_artwork(
@@ -17,7 +26,8 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       edition_sets: [],
       domestic_shipping_fee_cents: nil,
       international_shipping_fee_cents: nil,
-      inventory: nil
+      inventory: nil,
+      location: nil
     )
   end
   let(:buyer_shipping_address) do
@@ -42,10 +52,22 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
   end
 
   before do
+    # allow(Gravity).to receive_messages(
+    #   get_artwork: artwork,
+    #   get_credit_card: buyer_credit_card,
+    # )
     allow(Gravity).to receive_messages(
       get_artwork: artwork,
-      get_credit_card: buyer_credit_card
+      fetch_partner_locations: seller_addresses,
+      fetch_partner: gravity_partner,
+      get_credit_card: buyer_credit_card,
+      deduct_inventory: nil,
+      get_merchant_account: seller_merchant_account,
+      debit_commission_exemption: exemption
     )
+    prepare_setup_intent_create(status: 'succeeded')
+    prepare_payment_intent_create_success(amount: 800_00)
+    prepare_setup_intent_create(status: 'succeeded')
   end
 
   it 'supports buyer submitting an offer, seller adding missing metadata, and buyer accepting it' do
@@ -101,26 +123,20 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       order_id: order.id,
       shipping_total_cents: nil,
       tax_total_cents: nil,
-      buyer_total_cents: 500_00
+      buyer_total_cents: 500_00 # with the change to offer.buyer_total_cents this returns value now. is it okay?
     )
   end
 
   def buyer_sets_shipping
     order = Order.last
 
-    # TODO: feat: support setting shipping with missing artwork location and shipping costs. This mocks out shipping
-    # and tax calcualtion for now.
-    allow_any_instance_of(OfferTotals).to receive_messages(
-      shipping_total_cents: nil,
-      tax_total_cents: nil,
-      should_remit_sales_tax: false
-    )
     # TODO: refactor: `id` should be `orderId` to be consistent
     set_shipping_input = { id: order.id.to_s, fulfillmentType: 'SHIP', shipping: buyer_shipping_address }
     expect do
       buyer_client.execute(QueryHelper::SET_SHIPPING, input: set_shipping_input)
     end.to_not change(Offer, :count)
 
+    # tax and shipping info is nil
     expect(order.reload).to have_attributes(
       state: Order::PENDING,
       mode: Order::OFFER,
@@ -142,7 +158,7 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       amount_cents: 500_00,
       shipping_total_cents: nil,
       tax_total_cents: nil,
-      buyer_total_cents: 500_00
+      buyer_total_cents: 500_00 # with the change to offer.buyer_total_cents this returns value now. is it okay?
     )
   end
 
@@ -167,27 +183,36 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
     # TODO: feat: allow deferring setting order totals in this step because we don't have shipping or tax info.
     # TODO: question: after offer order submitted, do we also ask partners to respond (with missing
     # metadata/accept/counter/reject) in x hours (i.e. the same expiration rules)?
-    allow_any_instance_of(OfferProcessor).to receive_messages(
-      confirm_payment_method!: nil,
-      set_order_totals!: nil
-    )
+    # allow_any_instance_of(OfferProcessor).to receive_messages(
+    #   confirm_payment_method!: nil,
+    #   set_order_totals!: nil
+    # )
 
     offer = Offer.last
-    submit_order_with_offer_input = { offerId: offer.id.to_s }
+    # submit_order_with_offer_input = { offerId: offer.id.to_s }
     # TODO: question: when is the right step to create a setup intent and transaction?
+    # expect do
+    #   buyer_client.execute(OfferQueryHelper::SUBMIT_ORDER_WITH_OFFER, input: submit_order_with_offer_input)
+    # end.to_not change(order.transactions, :count)
+
     expect do
-      buyer_client.execute(OfferQueryHelper::SUBMIT_ORDER_WITH_OFFER, input: submit_order_with_offer_input)
-    end.to_not change(order.transactions, :count)
+      buyer_client.execute(OfferQueryHelper::SUBMIT_ORDER_WITH_OFFER, input: { offerId: offer.id.to_s })
+    end.to change(order.transactions, :count).by(1)
+    expect(order.transactions.first).to have_attributes(external_id: 'si_1', external_type: Transaction::SETUP_INTENT, status: Transaction::SUCCESS, transaction_type: Transaction::CONFIRM)
 
     expect(order.reload).to have_attributes(
       state: Order::SUBMITTED,
       fulfillment_type: Order::SHIP,
-      items_total_cents: nil,
       shipping_total_cents: nil,
       tax_total_cents: nil,
-      buyer_total_cents: nil,
-      seller_total_cents: nil,
-      commission_fee_cents: nil,
+      #   items_total_cents: nil,
+      #   buyer_total_cents: nil,
+      #   seller_total_cents: nil,
+      #   commission_fee_cents: nil,
+      items_total_cents: 50000,
+      buyer_total_cents: 50000,
+      seller_total_cents: 43020,
+      commission_fee_cents: 5000,
       shipping_country: 'US',
       credit_card_id: 'credit_card_1'
     )
