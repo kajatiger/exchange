@@ -18,9 +18,15 @@ class Offer < ApplicationRecord
   end
 
   def buyer_total_cents
-    # does removing this break anything?
-    # return unless shipping_total_cents.present? && tax_total_cents.present?
-    amount_cents + shipping_total_cents.to_i + tax_total_cents.to_i
+    return if skip_buyer_total_calculation?
+
+    amount_cents.to_i + shipping_total_cents.to_i + tax_total_cents.to_i
+  end
+
+  def skip_buyer_total_calculation?
+    return false if order.inquiry_order?
+
+    shipping_total_cents.blank? || tax_total_cents.blank?
   end
 
   def from_participant
