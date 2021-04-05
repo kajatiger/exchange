@@ -285,6 +285,90 @@ describe Api::GraphqlController, type: :request do
       end
     end
 
+    context 'query with states filter' do
+      let(:states_query) do
+        <<-GRAPHQL
+          query($states: [OrderStateEnum!], $sort: OrderConnectionSortEnum, $mode: OrderModeEnum, $sellerId: String) {
+            orders(states: $states, sort: $sort, mode: $mode, sellerId: $sellerId) {
+              edges {
+                node {
+                  id
+                  buyer {
+                    ... on Partner {
+                      id
+                    }
+                  }
+                  seller {
+                    ... on User {
+                      id
+                    }
+                  }
+                  state
+                  currencyCode
+                  itemsTotalCents
+                  lineItems{
+                    edges{
+                      node{
+                        priceCents
+                      }
+                    }
+                  }
+                  requestedFulfillment{
+                    ... on Ship {
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        GRAPHQL
+      end
+
+      it 'returns orders filtered by the states argument' do
+        result = client.execute(states_query, states: ['PENDING'], sellerId: seller_id)
+
+        expect(result.data.orders.edges.count).to eq(2)
+        result.data.orders.edges.each do |edge|
+          expect(edge.node.state).to eq('PENDING')
+        end
+      end
+
+      let(:both_states_query) do
+        <<-GRAPHQL
+          query($states: [OrderStateEnum!], $state: OrderStateEnum, $sellerId: String) {
+            orders(states: $states, state: $state, sellerId: $sellerId,) {
+              edges {
+                node {
+                  id
+                  state
+                  seller {
+                    ... on User {
+                      id
+                    }
+                  }
+                }
+              }
+            }
+          }
+        GRAPHQL
+      end
+
+      it 'returns an error when state and states argument is passed' do
+        expect do
+          # rubocop:disable Style/WordArray
+          client.execute(both_states_query, state: 'SUBMITTED', states: ['SUBMITTED', 'APPROVED'], sellerId: seller_id)
+
+          # rubocop:enable Style/WordArray
+        end.to raise_error do |error|
+          expect(error).to be_a(Graphlient::Errors::ServerError)
+          expect(error.status_code).to eq 400
+          expect(error.response['errors'].first['extensions']['code']).to eq 'invalid_states_params'
+          expect(error.response['errors'].first['extensions']['type']).to eq 'validation'
+        end
+      end
+    end
+
     describe 'total_count' do
       let(:query_with_total_count) do
         <<-GRAPHQL

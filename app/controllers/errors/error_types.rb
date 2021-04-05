@@ -20,6 +20,7 @@ module Errors
       invalid_order
       invalid_seller_address
       invalid_state
+      invalid_states_params
       missing_artwork_location
       missing_commission_rate
       missing_country
