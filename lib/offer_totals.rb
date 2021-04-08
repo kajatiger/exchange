@@ -9,7 +9,7 @@ class OfferTotals
   end
 
   def shipping_total_cents
-    return if missing_location_data?
+    return if skip_calculation?
 
     @shipping_total_cents ||= ShippingHelper.calculate(artwork, @order.fulfillment_type, @order.shipping_address)
   end
@@ -27,7 +27,7 @@ class OfferTotals
   end
 
   def tax_data
-    return OpenStruct.new(tax_total_cents: nil, should_remit_sales_tax: nil) if missing_location_data?
+    return OpenStruct.new(tax_total_cents: nil, should_remit_sales_tax: nil) if skip_calculation?
 
     @tax_data ||= begin
       service = Tax::CalculatorService.new(
@@ -50,7 +50,7 @@ class OfferTotals
     OpenStruct.new(tax_total_cents: 0, should_remit_sales_tax: false)
   end
 
-  def missing_location_data?
-    !@order.shipping_info? || artwork[:location].blank?
+  def skip_calculation?
+    !@order.shipping_info? || (artwork[:location].blank? && @order.inquiry_order?)
   end
 end
