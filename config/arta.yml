@@ -1,0 +1,8 @@
+development: &default
+# TODO: cleanup naming redundancies
+  arta_api_key: <%= ENV['ARTA_API_KEY'] || '' %>
+  arta_api_root_url: <%= ENV['ARTA_API_ROOT_URL'] || 'https://api.shiparta.com' %>
+test:
+  <<: *default
+production:
+  <<: *default
