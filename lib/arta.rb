@@ -1,13 +1,15 @@
-# Ramblings: thinking this class is just for API calls
-# Build another service class to actually format/prep artsy data for ARTA requests
+# frozen_string_literal: true
 
-# module?
 class ARTAError < StandardError; end
 
 class ARTA
+  # Ramblings: thinking this class is just for API calls
+  # Build another service class to actually format/prep artsy data for ARTA requests
+
+  # module?
   class << self
     def generate_shipment_quotes(params: {})
-      response = connection.post("/requests", params.to_json)
+      response = connection.post('/requests', params.to_json)
 
       process(response)
     end
@@ -15,20 +17,20 @@ class ARTA
     private
 
     def process(response)
-      # TODO: We should def handle 500s from ARTA here &&
+      # TODO: We should def handle 500s from ARTA here
       # eg: unhandled exception: status: 500, body: {}
 
       # TODO: 422s that have an error message maybe bubble them up somewhere
       # eg: {:errors=>{:"objects/0"=>["Required property height was not present."]}}
       raise ARTAError, "Couldn't perform request! status: #{response.status}. Message: #{response.body[:errors]}" unless response.success?
-      
+
       response.body
     end
 
     def headers
       {
-        "Content-Type" => "application/json",
-        "Authorization" => "ARTA_APIKey #{Rails.application.config_for(:arta)['arta_api_key']}"
+        'Content-Type' => 'application/json',
+        'Authorization' => "ARTA_APIKey #{Rails.application.config_for(:arta)['arta_api_key']}"
       }
     end
 
@@ -44,13 +46,10 @@ class ARTA
   end
 end
 
-
 #########################################
 #########################################
 # Use data below to test quote generation in your local console!
 # (call ARTA.generate_shipment_quotes(params: params))
-
-
 =begin
 
 buyer_info = {
@@ -73,7 +72,7 @@ physical_artwork_info = {
   subtype: 'sculpture',
   unit_of_measurement: "cm",
   width: 16.8,
-  height: 23.9,
+  height: 32.2,
   depth: 12.2,
   value: 400.00,
   value_currency: "USD",

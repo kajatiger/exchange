@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "objects/0": [
+      "Required property height was not present."
+    ]
+  }
+}
