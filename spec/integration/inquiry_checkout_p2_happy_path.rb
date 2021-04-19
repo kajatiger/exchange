@@ -14,20 +14,32 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
   let(:seller_addresses) { [Address.new(state: 'NY', country: 'US', postal_code: '10001'), Address.new(state: 'MA', country: 'US', postal_code: '02139')] }
   let(:buyer_client) { graphql_client(user_id: buyer_id, partner_ids: [], roles: 'user') }
   let(:seller_client) { graphql_client(user_id: 'partner_admin_id', partner_ids: [seller_id], roles: 'user') }
-  let(:gravity_artwork) { gravity_v1_artwork(_id: 'a-1', price_listed: 1000.00, edition_sets: [], domestic_shipping_fee_cents: 200_00, international_shipping_fee_cents: 300_00) }
   let(:gravity_partner) { { id: seller_id, artsy_collects_sales_tax: true, billing_location_id: '123abc', effective_commission_rate: 0.1 } }
   let(:exemption) { { currency_code: 'USD', amount_minor: 0 } }
 
   let(:impulse_conversation_id) { '401' }
-  let(:artwork) do
+  let(:artwork_id) { 'artwork_1' }
+  let(:artwork_location) { { country: 'US' } }
+  let(:artwork_without_metadata) do
     gravity_v1_artwork(
-      _id: 'artwork_1',
+      _id: artwork_id,
       price_listed: 1000.00,
       edition_sets: [],
       domestic_shipping_fee_cents: nil,
       international_shipping_fee_cents: nil,
       inventory: nil,
       location: nil
+    )
+  end
+  let(:artwork_with_metadata) do
+    gravity_v1_artwork(
+      _id: artwork_id,
+      price_listed: 1000.00,
+      edition_sets: [],
+      domestic_shipping_fee_cents: 3000,
+      international_shipping_fee_cents: 5000,
+      inventory: nil,
+      location: artwork_location
     )
   end
   let(:buyer_shipping_address) do
@@ -56,8 +68,9 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
     #   get_artwork: artwork,
     #   get_credit_card: buyer_credit_card,
     # )
+    # stub_tax_for_order(tax_amount: 25)
     allow(Gravity).to receive_messages(
-      get_artwork: artwork,
+      get_artwork: artwork_without_metadata,
       fetch_partner_locations: seller_addresses,
       fetch_partner: gravity_partner,
       get_credit_card: buyer_credit_card,
@@ -81,7 +94,7 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
   end
 
   def buyer_creates_pending_offer_order
-    create_inquiry_offer_order_input = { artworkId: artwork[:_id], quantity: 1, impulseConversationId: impulse_conversation_id }
+    create_inquiry_offer_order_input = { artworkId: artwork_id, quantity: 1, impulseConversationId: impulse_conversation_id }
     expect do
       buyer_client.execute(OfferQueryHelper::CREATE_INQUIRY_OFFER_ORDER, input: create_inquiry_offer_order_input)
     end.to change(Order, :count).by(1)
@@ -199,43 +212,50 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       buyer_client.execute(OfferQueryHelper::SUBMIT_ORDER_WITH_OFFER, input: { offerId: offer.id.to_s })
     end.to change(order.transactions, :count).by(1)
     expect(order.transactions.first).to have_attributes(external_id: 'si_1', external_type: Transaction::SETUP_INTENT, status: Transaction::SUCCESS, transaction_type: Transaction::CONFIRM)
-
     expect(order.reload).to have_attributes(
       state: Order::SUBMITTED,
       fulfillment_type: Order::SHIP,
+      shipping_country: 'US',
+      credit_card_id: 'credit_card_1',
+      # below are calculated without shipping/tax
       shipping_total_cents: nil,
       tax_total_cents: nil,
-      #   items_total_cents: nil,
-      #   buyer_total_cents: nil,
-      #   seller_total_cents: nil,
-      #   commission_fee_cents: nil,
       items_total_cents: 50000,
       buyer_total_cents: 50000,
       seller_total_cents: 43020,
-      commission_fee_cents: 5000,
-      shipping_country: 'US',
-      credit_card_id: 'credit_card_1'
+      transaction_fee_cents: 1980,      
+      commission_fee_cents: 5000
     )
   end
 
   def seller_counters_with_missing_data_provided
+
+    # now artwork has metadata
+    allow(Gravity).to receive_messages(
+      get_artwork: artwork_with_metadata,
+    )
+    stub_request(:post, Taxjar::API::Request::DEFAULT_API_URL + '/v2/taxes')
+      .with(:body => hash_including({amount: 500}))
+      .to_return(body: sales_tax_fixture(tax_amount: 25).to_json, headers: { content_type: 'application/json; charset=utf-8' })
+  
+    
     order = Order.last
 
     # TODO: feat: partner can counter with artwork location and shipping costs provided. The artwork location will need
     # to be updated in Gravity; shipping costs can be updated in Exchange or both.
-    allow_any_instance_of(OfferTotals).to receive_messages(
-      shipping_total_cents: 30_00,
-      tax_total_cents: 25_00,
-      should_remit_sales_tax: false
-    )
-    allow_any_instance_of(OfferOrderTotals).to receive_messages(
-      commission_rate: 0.13,
-      commission_fee_cents: 17_00,
-      transaction_fee_cents: 19_00
-    )
+    # allow_any_instance_of(OfferTotals).to receive_messages(
+    #   shipping_total_cents: 30_00,
+    #   tax_total_cents: 25_00,
+    #   should_remit_sales_tax: false
+    # )
+    # allow_any_instance_of(OfferOrderTotals).to receive_messages(
+    #   commission_rate: 0.13,
+    #   commission_fee_cents: 17_00,
+    #   transaction_fee_cents: 19_00
+    # )
     # `last_offer` is set in `set_order_totals!` that we mocked above. Here we manually update it for now.
     order.update! last_offer: Offer.last
-    allow_any_instance_of(OfferProcessor).to receive(:set_order_totals!).and_call_original
+    # allow_any_instance_of(OfferProcessor).to receive(:set_order_totals!).and_call_original
 
     offer = Offer.last
     # seller_counter_offer_input = { offerId: offer.id.to_s, shippingTotalCents: 30_00 }
@@ -251,9 +271,9 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       shipping_total_cents: 30_00,
       tax_total_cents: 25_00,
       buyer_total_cents: 555_00,
-      commission_fee_cents: 17_00,
-      transaction_fee_cents: 19_00,
-      seller_total_cents: 519_00,
+      commission_fee_cents: 50_00,
+      transaction_fee_cents: 21_95,
+      seller_total_cents: 483_05,
       shipping_country: 'US',
       credit_card_id: 'credit_card_1'
     )
@@ -280,14 +300,14 @@ describe 'Inquiry Checkout happy path with missing artwork metadata', type: :req
       shipping_total_cents: 30_00,
       tax_total_cents: 25_00,
       buyer_total_cents: 555_00,
-      commission_fee_cents: 17_00,
-      transaction_fee_cents: 19_00,
-      seller_total_cents: 519_00,
+      commission_fee_cents: 50_00,
+      transaction_fee_cents: 2195,
+      seller_total_cents: 48305,
       shipping_country: 'US',
       credit_card_id: 'credit_card_1'
     )
 
-    deduct_inventory_request = stub_request(:put, "#{gravity_v1_api_root}/artwork/#{artwork[:_id]}/inventory")
+    deduct_inventory_request = stub_request(:put, "#{gravity_v1_api_root}/artwork/#{artwork_id}/inventory")
     expect(deduct_inventory_request).to_not have_been_made
 
     # TODO: test: assert transactions
