@@ -26,7 +26,7 @@ gem 'money' # Library for dealing with money and currency conversion
 gem 'omniauth-artsy', '~> 0.2.3'
 gem 'paper_trail'
 gem 'sentry-raven'
-gem 'sidekiq', '<6' # for sending emails in the background (<6 necessary for Redis 3 compatibility)
+gem 'sidekiq', '<= 6.4.0' # for sending emails in the background (<6 necessary for Redis 3 compatibility)
 gem 'stripe'
 gem 'taxjar-ruby', require: 'taxjar'
 gem 'tzinfo-data' # overrides system TZ database
