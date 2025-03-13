@@ -87,6 +87,7 @@ GEM
     artsy-eventservice (1.0.9)
       bunny
     ast (2.4.1)
+    base64 (0.2.0)
     builder (3.2.4)
     bunny (2.17.0)
       amq-protocol (~> 2.3, >= 2.3.1)
@@ -162,7 +163,8 @@ GEM
       faraday (>= 1.0)
       faraday_middleware
       graphql-client
-    graphql (1.11.6)
+    graphql (1.13.24)
+      base64
     graphql-client (0.16.0)
       activesupport (>= 3.0)
       graphql (~> 1.8)
