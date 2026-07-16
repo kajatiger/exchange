@@ -87,6 +87,7 @@ GEM
     artsy-eventservice (1.0.9)
       bunny
     ast (2.4.1)
+    base64 (0.3.0)
     builder (3.2.4)
     bunny (2.17.0)
       amq-protocol (~> 2.3, >= 2.3.1)
@@ -448,7 +449,8 @@ GEM
       addressable (>= 2.3.6)
       crack (>= 0.3.2)
       hashdiff (>= 0.4.0, < 2.0.0)
-    websocket-driver (0.7.3)
+    websocket-driver (0.8.2)
+      base64
       websocket-extensions (>= 0.1.0)
     websocket-extensions (0.1.5)
     xpath (3.2.0)
